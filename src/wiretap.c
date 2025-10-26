@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
         mac_ntop(eth_frame_header->h_source, mac_src_addrstr_buffer);
         mac_ntop(eth_frame_header->h_dest, mac_dest_addrstr_buffer);
 
-        fprintf(stdout, "%s > %s: ", mac_src_addrstr_buffer, mac_dest_addrstr_buffer);
+        fprintf(stdout, "MAC %s > %s: ", mac_src_addrstr_buffer, mac_dest_addrstr_buffer);
         
         // Only handle ethernet frames with Ethertype IPv4 or IPv6.
         switch (htons(eth_frame_header->h_proto)) {
