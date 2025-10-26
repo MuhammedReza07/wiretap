@@ -1,5 +1,3 @@
-/* format.c - various formatting utility functions */
-
 /* Tell the compiler to include various definitions that are needed by the program
    like round() and strptime(). Probably makes the program GNU/Linux specific,
    so sorry Windows users... (Not really :3 )*/

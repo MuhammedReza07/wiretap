@@ -1,3 +1,5 @@
+/* format.h - various formatting utility functions */
+
 #include <stdint.h>
 #include <time.h>
 
