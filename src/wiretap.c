@@ -1,7 +1,13 @@
 /* wiretap.c - a simple packet analysis tool */
 
+/* Tell the compiler to include various definitions that are needed by the program
+   like round() and strptime(). Probably makes the program GNU/Linux specific,
+   so sorry Windows users... (Not really :3 )*/
+#define _GNU_SOURCE 39
+
 #include <arpa/inet.h>
 #include <errno.h>
+#include <math.h>
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <netinet/ip.h>
@@ -11,9 +17,14 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
+#define UINT64_STR_BUFFER_LEN 65
+
 const size_t MAC_ADDRSTRLEN = 6 + 2 * ETH_ALEN;
+const size_t ISO_8601_TIMESTRLEN = 25;
+const size_t ISO_8601_MS_OFFSET = 19;
 
 enum exit_codes {
     SUCCESS,
@@ -35,13 +46,41 @@ void mac_ntop(uint8_t* src, uint8_t* dest) {
         // Convert hi and lo to ASCII characters.
         *(dest + j) = hi + (hi < 10 ? 0x30 : 0x57);
         *(dest + j + 1) = lo + (lo < 10 ? 0x30 : 0x57);
-        *(dest + j + 2) = ':';
+        *(dest + j + 2) = '-';
 
         i += 1;
         j += 3;
     }
 
     *(dest + MAC_ADDRSTRLEN - 1) = '\0';
+}
+
+/* Convert UNIX epoch to an ISO 8601 formatted timestamp with milliseconds.*/
+void time_to_iso8601(struct timespec* time, uint8_t* buffer) {
+    uint32_t milliseconds;
+    double nanoseconds;
+
+    struct tm broken_down_time;
+    memset(&broken_down_time, 0, sizeof(broken_down_time));
+
+    /* This buffer should be large enough for storing the
+       decimal representation of a 64-bit integer,
+       together with the null-byte with bytes left to spare :) */
+    uint8_t uint64_str_buffer[UINT64_STR_BUFFER_LEN];
+
+    // Why do I have to do this? :/
+    snprintf((char*)uint64_str_buffer, UINT64_STR_BUFFER_LEN, "%ld", time->tv_sec);
+    strptime((char*)uint64_str_buffer, "%s", &broken_down_time);
+
+    // Convert nanoseconds to milliseconds.
+    nanoseconds = (double)(time->tv_nsec);
+    nanoseconds /= 1e6;
+    nanoseconds = round(nanoseconds);
+    milliseconds = (uint32_t)nanoseconds;
+
+    // Finally, we are two steps away from the ISO 8601 formatted timestamp!
+    strftime((char*)buffer, ISO_8601_TIMESTRLEN, "%Y-%m-%dT%H:%M:%S", &broken_down_time);
+    snprintf((char*)(buffer + ISO_8601_MS_OFFSET), ISO_8601_TIMESTRLEN - ISO_8601_MS_OFFSET, ".%03dZ", milliseconds);
 }
 
 int main(int argc, char** argv) {
@@ -112,17 +151,30 @@ int main(int argc, char** argv) {
        In other words, begin wiretapping :3 */
 
     uint16_t ethertype;
+
     struct ethhdr* eth_frame_header;
     struct iphdr* ipv4_header;
     struct ip6_hdr* ipv6_header;
+    struct timespec time;
+
+    uint8_t timestamp[ISO_8601_TIMESTRLEN];
     uint8_t mac_src_addrstr_buffer[MAC_ADDRSTRLEN], mac_dest_addrstr_buffer[MAC_ADDRSTRLEN];
-    char ip_src_addrstr[INET6_ADDRSTRLEN], ip_dest_addrstr[INET6_ADDRSTRLEN];
+    uint8_t ip_src_addrstr[INET6_ADDRSTRLEN], ip_dest_addrstr[INET6_ADDRSTRLEN];
 
     while (1) {
         if ((status = recv(sockfd, eth_frame_buffer, ETH_FRAME_LEN, 0)) == -1) {
             perror("recv");
             // TODO: actually handle the error.
         }
+        
+        // Get the current time since Unix epoch.
+        if (clock_gettime(CLOCK_REALTIME, &time) == -1) {
+            perror("clock");
+            // TODO: actually handle the error.
+        }
+
+        time_to_iso8601(&time, timestamp);
+        fprintf(stdout, "%s: ", timestamp);
 
         // Extract ethernet frame header.
         eth_frame_header = (struct ethhdr*)eth_frame_buffer;
@@ -131,7 +183,7 @@ int main(int argc, char** argv) {
         mac_ntop(eth_frame_header->h_source, mac_src_addrstr_buffer);
         mac_ntop(eth_frame_header->h_dest, mac_dest_addrstr_buffer);
 
-        fprintf(stdout, "MAC %s > %s: ", mac_src_addrstr_buffer, mac_dest_addrstr_buffer);
+        fprintf(stdout, "%s > %s: ", mac_src_addrstr_buffer, mac_dest_addrstr_buffer);
         
         // Only handle ethernet frames with Ethertype IPv4 or IPv6.
         switch (htons(eth_frame_header->h_proto)) {
@@ -139,8 +191,8 @@ int main(int argc, char** argv) {
                 ipv4_header = (struct iphdr*)(eth_frame_buffer + ETH_HLEN);
 
                 // Convert the source and destination IPv4 addresses to strings.
-                inet_ntop(AF_INET, &(ipv4_header->saddr), ip_src_addrstr, INET_ADDRSTRLEN);
-                inet_ntop(AF_INET, &(ipv4_header->daddr), ip_dest_addrstr, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET, &(ipv4_header->saddr), (char*)ip_src_addrstr, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET, &(ipv4_header->daddr), (char*)ip_dest_addrstr, INET_ADDRSTRLEN);
 
                 fprintf(stdout, "IPv4 %s > %s, ", ip_src_addrstr, ip_dest_addrstr);
                 break;
@@ -148,8 +200,8 @@ int main(int argc, char** argv) {
                 ipv6_header = (struct ip6_hdr*)(eth_frame_buffer + ETH_HLEN);
 
                 // Convert the source and destination IPv4 addresses to strings.
-                inet_ntop(AF_INET6, &(ipv6_header->ip6_src), ip_src_addrstr, INET6_ADDRSTRLEN);
-                inet_ntop(AF_INET6, &(ipv6_header->ip6_dst), ip_dest_addrstr, INET6_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &(ipv6_header->ip6_src), (char*)ip_src_addrstr, INET6_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &(ipv6_header->ip6_dst), (char*)ip_dest_addrstr, INET6_ADDRSTRLEN);
 
                 fprintf(stdout, "IPv6 %s > %s, ", ip_src_addrstr, ip_dest_addrstr);
                 break;
