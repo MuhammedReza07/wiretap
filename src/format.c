@@ -34,7 +34,7 @@ void mac_ntop(uint8_t* src, uint8_t* dest) {
 }
 
 void time_to_iso8601(struct timespec* time, uint8_t* buffer) {
-    uint32_t milliseconds;
+    uint32_t microseconds;
     double nanoseconds;
 
     struct tm broken_down_time;
@@ -49,13 +49,13 @@ void time_to_iso8601(struct timespec* time, uint8_t* buffer) {
     snprintf((char*)uint64_str_buffer, UINT64_STR_BUFFER_LEN, "%ld", time->tv_sec);
     strptime((char*)uint64_str_buffer, "%s", &broken_down_time);
 
-    // Convert nanoseconds to milliseconds.
+    // Convert nanoseconds to microseconds.
     nanoseconds = (double)(time->tv_nsec);
-    nanoseconds /= 1e6;
+    nanoseconds /= 1e3;
     nanoseconds = round(nanoseconds);
-    milliseconds = (uint32_t)nanoseconds;
+    microseconds = (uint32_t)nanoseconds;
 
     // Finally, we are two steps away from the ISO 8601 formatted timestamp!
     strftime((char*)buffer, ISO_8601_TIMESTRLEN, "%Y-%m-%dT%H:%M:%S", &broken_down_time);
-    snprintf((char*)(buffer + ISO_8601_MS_OFFSET), ISO_8601_TIMESTRLEN - ISO_8601_MS_OFFSET, ".%03dZ", milliseconds);
+    snprintf((char*)(buffer + ISO_8601_MS_OFFSET), ISO_8601_TIMESTRLEN - ISO_8601_MS_OFFSET, ".%06dZ", microseconds);
 }
