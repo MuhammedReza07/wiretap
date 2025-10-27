@@ -101,6 +101,7 @@ int main(int argc, char** argv) {
     while (1) {
         if ((status = recv(sockfd, eth_frame_buffer, ETH_FRAME_LEN, 0)) == -1) {
             perror("recv");
+            continue;
             // TODO: actually handle the error.
         }
         
@@ -108,10 +109,10 @@ int main(int argc, char** argv) {
         if (clock_gettime(CLOCK_REALTIME, &time) == -1) {
             perror("clock");
             // TODO: actually handle the error.
+        } else {
+            time_to_iso8601(&time, timestamp);
+            fprintf(stdout, "%s: ", timestamp);
         }
-
-        time_to_iso8601(&time, timestamp);
-        fprintf(stdout, "%s: ", timestamp);
 
         // Extract ethernet frame header.
         eth_frame_header = (struct ethhdr*)eth_frame_buffer;
