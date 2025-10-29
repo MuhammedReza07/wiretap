@@ -1,7 +1,4 @@
-/* Tell the compiler to include various definitions that are needed by the program
-   like round() and strptime(). Probably makes the program GNU/Linux specific,
-   so sorry Windows users... (Not really :3 )*/
-#define _GNU_SOURCE 39
+#define _XOPEN_SOURCE 600
 
 #include "format.h"
 #include <math.h>
