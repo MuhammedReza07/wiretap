@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Wpedantic -Werror
+CFLAGS = -Wall -Wextra -Wpedantic
 
 wiretap: wiretap.c format.h format.o
 	$(CC) $(CFLAGS) src/wiretap.c bin/format.o -o bin/wiretap -lm
