@@ -3,16 +3,27 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include "format.h"
+#include <linux/if_packet.h>    // I would like to apologise to BSD users. I don't really care about MacOS or Windows portability though :3
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+
+// Set to 1 if a termination signal has been caught, 0 otherwise.
+uint8_t terminate = 0;
+
+/* Handle various termination signals such as SIGINT to enable graceful termination.*/
+void termination_handler(int sig) {
+    // 10/10 function, would write again :3
+    terminate = 1;
+}
 
 enum exit_codes {
     SUCCESS,
@@ -84,6 +95,13 @@ int main(int argc, char** argv) {
         return ERR_OPERATIONAL;
     }
 
+    // Set up termination signal handling.
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = &termination_handler;
+    act.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &act, NULL);
+
     /* Begin analysing the traffic going through the chosen network interface.
        In other words, begin wiretapping :3 */
 
@@ -98,7 +116,7 @@ int main(int argc, char** argv) {
     uint8_t mac_src_addrstr_buffer[MAC_ADDRSTRLEN], mac_dest_addrstr_buffer[MAC_ADDRSTRLEN];
     uint8_t ip_src_addrstr[INET6_ADDRSTRLEN], ip_dest_addrstr[INET6_ADDRSTRLEN];
 
-    while (1) {
+    while (!terminate) {
         if ((status = recv(sockfd, eth_frame_buffer, ETH_FRAME_LEN, 0)) == -1) {
             perror("recv");
             continue;
@@ -137,7 +155,7 @@ int main(int argc, char** argv) {
             case ETHERTYPE_IPV6:
                 ipv6_header = (struct ip6_hdr*)(eth_frame_buffer + ETH_HLEN);
 
-                // Convert the source and destination IPv4 addresses to strings.
+                // Convert the source and destination IPv6 addresses to strings.
                 inet_ntop(AF_INET6, &(ipv6_header->ip6_src), (char*)ip_src_addrstr, INET6_ADDRSTRLEN);
                 inet_ntop(AF_INET6, &(ipv6_header->ip6_dst), (char*)ip_dest_addrstr, INET6_ADDRSTRLEN);
 
@@ -150,6 +168,20 @@ int main(int argc, char** argv) {
         }
 
         fprintf(stdout, "length %d\n", status);
+    }
+
+    // Receive and output packet socket statistics.
+
+    socklen_t statistics_len;
+    struct tpacket_stats statistics;
+    statistics_len = sizeof(statistics);
+    memset(&statistics, 0, sizeof(statistics));
+
+    // Retrieving packet statistics is done using getsockopt() for some reason :/
+    if (getsockopt(sockfd, SOL_PACKET, PACKET_STATISTICS, &statistics, &statistics_len) == -1) {
+        perror("getsockopt packet statistics");
+    } else {
+        fprintf(stdout, "\nWiretapping results:\n%u packets received\n%u packets dropped by kernel\n", statistics.tp_packets, statistics.tp_drops);
     }
 
     // Close the socket.
