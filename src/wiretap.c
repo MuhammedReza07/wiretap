@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
         captured_packets += 1;
     }
 
-    // Receive and output packet socket statistics.
+    // Retrieve and output packet socket statistics.
 
     socklen_t statistics_len;
     struct tpacket_stats statistics;
