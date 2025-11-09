@@ -105,6 +105,9 @@ int main(int argc, char** argv) {
     /* Begin analysing the traffic going through the chosen network interface.
        In other words, begin wiretapping :3 */
 
+    uint32_t captured_packets;
+    captured_packets = 0;
+
     uint16_t ethertype;
 
     struct ethhdr* eth_frame_header;
@@ -168,6 +171,8 @@ int main(int argc, char** argv) {
         }
 
         fprintf(stdout, "length %d\n", status);
+
+        captured_packets += 1;
     }
 
     // Receive and output packet socket statistics.
@@ -181,7 +186,12 @@ int main(int argc, char** argv) {
     if (getsockopt(sockfd, SOL_PACKET, PACKET_STATISTICS, &statistics, &statistics_len) == -1) {
         perror("getsockopt packet statistics");
     } else {
-        fprintf(stdout, "\nWiretapping results:\n%u packets received\n%u packets dropped by kernel\n", statistics.tp_packets, statistics.tp_drops);
+        fprintf(stdout, 
+            "\nWiretapping results:\n%u packets received\n%u packets captured\n%u packets dropped by kernel\n", 
+            statistics.tp_packets, 
+            captured_packets, 
+            statistics.tp_drops
+        );
     }
 
     // Close the socket.
