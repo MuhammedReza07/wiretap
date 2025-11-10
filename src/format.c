@@ -56,3 +56,49 @@ void time_to_iso8601(struct timespec* time, uint8_t* buffer) {
     strftime((char*)buffer, ISO_8601_TIMESTRLEN, "%Y-%m-%dT%H:%M:%S", &broken_down_time);
     snprintf((char*)(buffer + ISO_8601_MS_OFFSET), ISO_8601_TIMESTRLEN - ISO_8601_MS_OFFSET, ".%06dZ", microseconds);
 }
+
+int8_t ip_proto_to_string(uint8_t ip_proto, uint8_t* dest) {
+    // I love cursed, hard-coded character strings <3
+    switch (ip_proto) {
+        // ICMP
+        case 0x01:
+            *dest = 'I';
+            *(dest + 1) = 'C';
+            *(dest + 2) = 'M';
+            *(dest + 3) = 'P';
+            *(dest + 4) = '\0';
+            break;
+        // TCP
+        case 0x06:
+            *dest = 'T';
+            *(dest + 1) = 'C';
+            *(dest + 2) = 'P';
+            *(dest + 3) = '\0';
+            break;
+        // UDP
+        case 0x11:
+            *dest = 'U';
+            *(dest + 1) = 'D';
+            *(dest + 2) = 'P';
+            *(dest + 3) = '\0';
+            break;
+        // ICMPv6
+        case 0x3a:
+            *dest = 'I';
+            *(dest + 1) = 'C';
+            *(dest + 2) = 'M';
+            *(dest + 3) = 'P';
+            *(dest + 4) = 'v';
+            *(dest + 5) = '6';
+            *(dest + 6) = '\0';
+            break;
+        // Unimplemented
+        default:
+            *dest = '?';
+            *(dest + 1) = '?';
+            *(dest + 2) = '?';
+            *(dest + 3) = '\0';
+            return -1;
+    }
+    return 0;
+}

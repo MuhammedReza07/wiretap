@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
     uint8_t timestamp[ISO_8601_TIMESTRLEN];
     uint8_t mac_src_addrstr_buffer[MAC_ADDRSTRLEN], mac_dest_addrstr_buffer[MAC_ADDRSTRLEN];
     uint8_t ip_src_addrstr[INET6_ADDRSTRLEN], ip_dest_addrstr[INET6_ADDRSTRLEN];
+    uint8_t ip_protostr[IP_PROTOSTRLEN];
 
     while (!terminate) {
         if ((status = recv(sockfd, eth_frame_buffer, ETH_FRAME_LEN, 0)) == -1) {
@@ -154,6 +155,21 @@ int main(int argc, char** argv) {
                 inet_ntop(AF_INET, &(ipv4_header->daddr), (char*)ip_dest_addrstr, INET_ADDRSTRLEN);
 
                 fprintf(stdout, "IPv4 %s > %s, ", ip_src_addrstr, ip_dest_addrstr);
+
+                if (ip_proto_to_string(ipv4_header->protocol, ip_protostr) == -1) {
+                    fprintf(stdout, "%s, protocol %#0hx, ", ip_protostr, ipv4_header->protocol);
+                } else {
+                    fprintf(stdout, "%s, ", ip_protostr);
+                }
+
+                fprintf(
+                    stdout, 
+                    "id %#0hx, offset %#0hx, ttl %u, checksum %#0hx, ",
+                    ipv4_header->id,
+                    ipv4_header->frag_off,
+                    ipv4_header->ttl,
+                    ipv4_header->check
+                );
                 break;
             case ETHERTYPE_IPV6:
                 ipv6_header = (struct ip6_hdr*)(eth_frame_buffer + ETH_HLEN);
@@ -163,6 +179,21 @@ int main(int argc, char** argv) {
                 inet_ntop(AF_INET6, &(ipv6_header->ip6_dst), (char*)ip_dest_addrstr, INET6_ADDRSTRLEN);
 
                 fprintf(stdout, "IPv6 %s > %s, ", ip_src_addrstr, ip_dest_addrstr);
+
+                // Why are IPv6 header struct field names so strange :/
+                if (ip_proto_to_string(ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_nxt, ip_protostr) == -1) {
+                    fprintf(stdout, "%s, protocol %#0hx, ", ip_protostr, ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_nxt);
+                } else {
+                    fprintf(stdout, "%s, ", ip_protostr);
+                }
+
+                fprintf(
+                    stdout,
+                    "flow %#0x, payload length %hu, hop limit %u, ",
+                    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_flow,
+                    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_plen,
+                    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_hlim
+                );
                 break;
             default:
                 // An unknown Ethertype was encountered...
@@ -170,7 +201,7 @@ int main(int argc, char** argv) {
                 fprintf(stdout, "????, ethertype %#0hx, ", ethertype);
         }
 
-        fprintf(stdout, "length %d\n", status);
+        fprintf(stdout, "frame length %d\n", status);
 
         captured_packets += 1;
     }
@@ -186,7 +217,8 @@ int main(int argc, char** argv) {
     if (getsockopt(sockfd, SOL_PACKET, PACKET_STATISTICS, &statistics, &statistics_len) == -1) {
         perror("getsockopt packet statistics");
     } else {
-        fprintf(stdout, 
+        fprintf(
+            stdout, 
             "\nWiretapping results:\n%u packets received\n%u packets captured\n%u packets dropped by kernel\n", 
             statistics.tp_packets, 
             captured_packets, 
