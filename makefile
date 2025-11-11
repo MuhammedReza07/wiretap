@@ -13,4 +13,4 @@ format.o: format.c
 	touch src/$@
 
 clean:
-	rm bin/*
+	rm -rf bin
